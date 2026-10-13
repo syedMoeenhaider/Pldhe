@@ -72,19 +72,35 @@ Agar Render slow lage to: huggingface.co → New Space → SDK **Docker** →
 repo push karo. Dockerfile already `$PORT` support karta hai (Spaces port
 7860 deta hai). Database phir bhi Supabase hi rahega.
 
-## No-card route (Supabase + Hugging Face Spaces)
+## No-card route — Vercel backend + Vercel frontend + Supabase DB (recommended)
 
-Render card mangta hai — is liye card ke baghair ye route hai:
+Render card mangta hai, HF Docker ab PRO-only hai — is liye sab se
+saaf free route **Vercel** hai (free, no card):
 
-1. **Supabase** (database, free, no card): supabase.com → New project →
-   **Database → Extensions** → `postgis` enable → **Project Settings →
-   Database** → connection string (URI) copy karo.
-2. **Hugging Face** (backend, free, no card): huggingface.co → New Space →
-   name `pldhe-backend`, SDK **Docker** → Create.
-3. Is repo ko Space mein push karo (HF write token chahiye).
-4. Space → **Settings → Variables and secrets** → New secret:
-   `DATABASE_URL` = Supabase connection string.
-5. Space auto-rebuild → `https://<user>-pldhe-backend.hf.space` live.
-   `/health` aur `/docs` check karo.
+**Backend project:**
+1. vercel.com → Add New Project → `syedMoeenhaider/Pldhe` import karo →
+   Root Directory default (repo root), Framework **Other** → Deploy.
+   (`vercel.json` sab routes ko `api/index.py` par bhejta hai; Mangum
+   FastAPI app ko serverless par chalata hai.)
+2. Project → Settings → Environment Variables → `DATABASE_URL` =
+   Supabase connection string (encoded form) → Save.
+3. Redeploy → `https://<project>.vercel.app/health` kholo — `{"status":"ok"}`
+   aana chahiye. (Pehli hit cold start hai — thoda slow ho sakta hai.)
 
-Root `Dockerfile` isi liye hai (HF ko repo root par Dockerfile chahiye).
+**Frontend project:**
+1. Add New Project → same repo → Root Directory: `frontend` →
+   Framework **Next.js**.
+2. Environment variables:
+   - `NEXT_PUBLIC_API_URL` = backend ka Vercel URL
+   - `NEXT_PUBLIC_VAPI_PUBLIC_KEY` = Vapi public key
+   - `NEXT_PUBLIC_VAPI_ASSISTANT_ID` = `cbebdae0-acb9-4998-8ecc-478691245a2b`
+3. Deploy → "Live Baat Karein" button live.
+
+Phir dono Vapi assistants ka `serverUrl` backend URL par update karo
+(webhooks: `/api/v1/webhooks/vapi-intake` aur `/api/v1/webhooks/vapi`).
+
+## Alternative: Hugging Face Spaces (Docker) — AB PRO-ONLY
+
+HF ne Docker/Gradio Spaces paid kar diye hain (sirf Static free hai) —
+ye route ab kaam nahi karta. Root `Dockerfile` repo mein rehne do
+(docker-compose/Render ke kaam ka hai).
