@@ -6,6 +6,7 @@ Flow:  POST /api/v1/intake  → transcribe → triage → resolve location →
 
 import os
 import shutil
+import tempfile
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -69,7 +70,13 @@ app.add_middleware(
 
 @app.on_event("startup")
 def _startup():
-    os.makedirs(settings.AUDIO_STORAGE_DIR, exist_ok=True)
+    # Serverless (Vercel) has a read-only filesystem except /tmp —
+    # fall back gracefully instead of crashing the cold start.
+    try:
+        os.makedirs(settings.AUDIO_STORAGE_DIR, exist_ok=True)
+    except OSError:
+        settings.AUDIO_STORAGE_DIR = os.path.join(tempfile.gettempdir(), "pldhe_storage")
+        os.makedirs(settings.AUDIO_STORAGE_DIR, exist_ok=True)
     init_db()
 
 
