@@ -60,7 +60,9 @@ from .triage import analyze_symptoms
 from .language import normalize_dialect
 
 app = FastAPI(title="PLDHE API", version="0.1.0",
-              description="Punjab Livestock Digital Health Ecosystem — walking skeleton")
+              description="Punjab Livestock Digital Health Ecosystem — walking skeleton",
+              # Served under /api/* on Vercel (function routing); keep local dev working too.
+              docs_url="/api/docs", redoc_url="/api/redoc", openapi_url="/api/openapi.json")
 
 app.add_middleware(
     CORSMiddleware,
