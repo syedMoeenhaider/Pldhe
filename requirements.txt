@@ -1,7 +1,7 @@
 # Root requirements for the Vercel (serverless) backend deployment.
-# Mirrors backend/requirements.txt plus the Mangum ASGI adapter.
+# Mirrors backend/requirements.txt. Vercel's Python runtime serves the
+# FastAPI app as native ASGI — no adapter needed.
 fastapi>=0.115
-mangum>=0.17
 sqlalchemy>=2.0
 psycopg2-binary>=2.9
 geoalchemy2>=0.14

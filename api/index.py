@@ -1,7 +1,7 @@
-"""Vercel serverless entrypoint — adapts the FastAPI app via Mangum.
+"""Vercel serverless entrypoint.
 
-Vercel's Python runtime picks up the `handler` variable automatically.
-All routes rewrite here (see vercel.json).
+Vercel's Python runtime auto-detects ASGI apps: just export the FastAPI
+instance as `app`. No Mangum/adapter needed.
 """
 
 import os
@@ -9,8 +9,4 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from mangum import Mangum  # noqa: E402
-
-from backend.app.main import app  # noqa: E402
-
-handler = Mangum(app, lifespan="auto")
+from backend.app.main import app  # noqa: E402,F401  (re-exported for Vercel)

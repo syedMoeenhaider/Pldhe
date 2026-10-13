@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
@@ -78,6 +78,24 @@ def _startup():
         settings.AUDIO_STORAGE_DIR = os.path.join(tempfile.gettempdir(), "pldhe_storage")
         os.makedirs(settings.AUDIO_STORAGE_DIR, exist_ok=True)
     init_db()
+
+
+_db_ready = False
+
+
+@app.middleware("http")
+async def _ensure_db_ready(request: Request, call_next):
+    """Vercel's serverless runtime may not run lifespan startup events,
+    so lazily ensure the DB schema exists on the first request (idempotent;
+    retried on failure instead of poisoning the instance)."""
+    global _db_ready
+    if not _db_ready:
+        try:
+            _startup()
+            _db_ready = True
+        except Exception:
+            pass
+    return await call_next(request)
 
 
 # ---------------------------------------------------------------- helpers
