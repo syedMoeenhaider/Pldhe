@@ -1,0 +1,22 @@
+# Render Blueprint — one-click deploy of the PLDHE backend (free tier).
+# Usage: push this repo to GitHub → Render Dashboard → New → Blueprint → select repo.
+services:
+  - type: web
+    name: pldhe-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false # paste your Supabase connection string in the dashboard
+      - key: VAPI_API_KEY
+        sync: false
+      - key: VAPI_ASSISTANT_ID
+        sync: false
+      - key: VAPI_PHONE_NUMBER_ID
+        sync: false
+      - key: N8N_WEBHOOK_URL
+        value: "" # live demo uses direct Vapi mode; n8n stays local
+      - key: HELPLINE_NUMBER
+        value: "0800-78643"
