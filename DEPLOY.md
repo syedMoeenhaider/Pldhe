@@ -71,3 +71,20 @@ curl -X POST https://pldhe-backend.onrender.com/api/v1/intake \
 Agar Render slow lage to: huggingface.co → New Space → SDK **Docker** →
 repo push karo. Dockerfile already `$PORT` support karta hai (Spaces port
 7860 deta hai). Database phir bhi Supabase hi rahega.
+
+## No-card route (Supabase + Hugging Face Spaces)
+
+Render card mangta hai — is liye card ke baghair ye route hai:
+
+1. **Supabase** (database, free, no card): supabase.com → New project →
+   **Database → Extensions** → `postgis` enable → **Project Settings →
+   Database** → connection string (URI) copy karo.
+2. **Hugging Face** (backend, free, no card): huggingface.co → New Space →
+   name `pldhe-backend`, SDK **Docker** → Create.
+3. Is repo ko Space mein push karo (HF write token chahiye).
+4. Space → **Settings → Variables and secrets** → New secret:
+   `DATABASE_URL` = Supabase connection string.
+5. Space auto-rebuild → `https://<user>-pldhe-backend.hf.space` live.
+   `/health` aur `/docs` check karo.
+
+Root `Dockerfile` isi liye hai (HF ko repo root par Dockerfile chahiye).
