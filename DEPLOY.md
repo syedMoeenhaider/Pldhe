@@ -104,3 +104,17 @@ Phir dono Vapi assistants ka `serverUrl` backend URL par update karo
 HF ne Docker/Gradio Spaces paid kar diye hain (sirf Static free hai) —
 ye route ab kaam nahi karta. Root `Dockerfile` repo mein rehne do
 (docker-compose/Render ke kaam ka hai).
+
+## Computer Vision (breed ID + weight estimation)
+
+Endpoint: POST /api/v1/vision/analyze (multipart: image, optional
+reference_length_cm + reference_pixels, species=cattle|buffalo).
+
+* Breed ID needs a trained `backend/app/breed_classifier.pt` — train it with
+  `backend/app/train_breed_classifier.py` on 100+ labelled photos per breed.
+  Without the model the endpoint returns `needs-training`, never a fake guess.
+* Weight needs a known-size reference object in the photo (e.g. 1 m stick)
+  + its pixel length, then Schaeffer's formula runs. Expected error ~±10%.
+* YOLO inference needs ultralytics + torch; on Vercel serverless the
+  endpoint degrades to `model-unavailable`. Run the full pipeline on any
+  host with the models installed, or keep it as the documented local module.
