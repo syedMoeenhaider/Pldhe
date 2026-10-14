@@ -426,13 +426,23 @@ def get_case(case_id: UUID, db: Session = Depends(get_db)):
 
 
 @app.post("/api/v1/vision/analyze")
-async def vision_analyze(image: UploadFile = File(...)):
-    """Phase 2 CV hook: side-profile/headshot → breed guess + weight estimate."""
+async def vision_analyze(
+    image: UploadFile = File(...),
+    reference_length_cm: Optional[float] = Form(None),
+    reference_pixels: Optional[float] = Form(None),
+    species: str = Form("cattle"),
+):
+    """CV: breed ID + weight estimation (Schaeffer formula).
+
+    Form fields: image (side-view photo), reference_length_cm +
+    reference_pixels (known-size object in the photo, REQUIRED for
+    weight), species ("cattle" | "buffalo").
+    """
     ext = os.path.splitext(image.filename or "")[1] or ".jpg"
     path = os.path.join(settings.AUDIO_STORAGE_DIR, f"vision_{uuid.uuid4().hex}{ext}")
     with open(path, "wb") as f:
         shutil.copyfileobj(image.file, f)
-    return analyze_image(path)
+    return analyze_image(path, reference_length_cm, reference_pixels, species)
 
 @app.get("/api/v1/cases", response_model=List[CaseSummary])
 def list_cases(
