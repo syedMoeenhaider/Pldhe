@@ -14,6 +14,7 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
 from sqlalchemy import func, select
@@ -34,6 +35,7 @@ from .dispatch import (
     trigger_helpline_proxy_n8n,
 )
 from .vision import analyze_image
+from .knowledge import search as knowledge_search
 from .location import extract_village, resolve_location
 from .models import (
     CaseStatus,
@@ -431,18 +433,49 @@ async def vision_analyze(
     reference_length_cm: Optional[float] = Form(None),
     reference_pixels: Optional[float] = Form(None),
     species: str = Form("cattle"),
+    image_front: Optional[UploadFile] = File(None),
+    front_reference_length_cm: Optional[float] = Form(None),
+    front_reference_pixels: Optional[float] = Form(None),
 ):
     """CV: breed ID + weight estimation (Schaeffer formula).
 
     Form fields: image (side-view photo), reference_length_cm +
     reference_pixels (known-size object in the photo, REQUIRED for
     weight), species ("cattle" | "buffalo").
+    Optional multi-angle: image_front (front-view photo) +
+    front_reference_length_cm + front_reference_pixels → measured
+    chest width → real heart girth (±7% instead of ±10%).
     """
     ext = os.path.splitext(image.filename or "")[1] or ".jpg"
     path = os.path.join(settings.AUDIO_STORAGE_DIR, f"vision_{uuid.uuid4().hex}{ext}")
     with open(path, "wb") as f:
         shutil.copyfileobj(image.file, f)
-    return analyze_image(path, reference_length_cm, reference_pixels, species)
+    front_path = None
+    if image_front is not None:
+        fext = os.path.splitext(image_front.filename or "")[1] or ".jpg"
+        front_path = os.path.join(settings.AUDIO_STORAGE_DIR, f"vision_{uuid.uuid4().hex}{fext}")
+        with open(front_path, "wb") as f:
+            shutil.copyfileobj(image_front.file, f)
+    return analyze_image(path, reference_length_cm, reference_pixels, species,
+                         front_path, front_reference_length_cm,
+                         front_reference_pixels)
+
+
+class KnowledgeQuery(BaseModel):
+    query: str
+    top_k: int = 3
+
+
+@app.post("/api/v1/knowledge/search")
+def knowledge_search_endpoint(q: KnowledgeQuery):
+    """RAG retrieval: search the veterinary knowledge base.
+
+    The Vapi assistant calls this as a function tool mid-call to ground
+    its Saraiki answers in curated knowledge (triage KB v1; book chunks
+    appended via knowledge.py --ingest when available).
+    """
+    return {"results": knowledge_search(q.query, top_k=q.top_k)}
+
 
 @app.get("/api/v1/cases", response_model=List[CaseSummary])
 def list_cases(
