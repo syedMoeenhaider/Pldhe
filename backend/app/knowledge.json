@@ -1,0 +1,147 @@
+[
+ {
+  "id": "triage-0",
+  "source": "PLDHE triage knowledge base v1 (curated)",
+  "title_en": "Foot and Mouth Disease",
+  "title_ur": "منہ کھر کی بیماری (FMD)",
+  "risk": "EMERGENCY",
+  "text": "Foot and Mouth Disease / منہ کھر کی بیماری (FMD). Alamat: munh se jhaag, mu se jhag, منہ سے جھاگ, munh cho jhaag, munh cho jhag, khur mein zakham, khur me zakham, کھر میں زخم. Munh se jhaag + khuron mein zakham FMD ki classic nishani hai — ye tezi se phelta hai, is liye EMERGENCY.",
+  "keywords": [
+   "munh se jhaag",
+   "mu se jhag",
+   "منہ سے جھاگ",
+   "munh cho jhaag",
+   "munh cho jhag",
+   "khur mein zakham",
+   "khur me zakham",
+   "کھر میں زخم",
+   "munh mein chhalay",
+   "منہ میں چھالے",
+   "langra",
+   "langrahat",
+   "langri",
+   "لنگڑا",
+   "foot and mouth",
+   "fmd"
+  ]
+ },
+ {
+  "id": "triage-1",
+  "source": "PLDHE triage knowledge base v1 (curated)",
+  "title_en": "Hemorrhagic Septicemia",
+  "title_ur": "گل گھوٹو (HS)",
+  "risk": "EMERGENCY",
+  "text": "Hemorrhagic Septicemia / گل گھوٹو (HS). Alamat: galay mein sujan, gale me sujan, گلے میں سوجن, gal ghoto, gal ghotu, گل گھوٹو, saans mein dikkat, sans me dikkat. Galay ki sujan + saans mein dikkat Gal Ghotu (HS) ki taraf ishara karti hai — ye 24-48 ghantay mein janleva ho sakta hai.",
+  "keywords": [
+   "galay mein sujan",
+   "gale me sujan",
+   "گلے میں سوجن",
+   "gal ghoto",
+   "gal ghotu",
+   "گل گھوٹو",
+   "saans mein dikkat",
+   "sans me dikkat",
+   "سانس میں دقت",
+   "tez bukhar",
+   "تیز بخار",
+   "hemorrhagic septicemia",
+   "hs"
+  ]
+ },
+ {
+  "id": "triage-2",
+  "source": "PLDHE triage knowledge base v1 (curated)",
+  "title_en": "Lumpy Skin Disease",
+  "title_ur": "لمپی اسکن بیماری (LSD)",
+  "risk": "HIGH",
+  "text": "Lumpy Skin Disease / لمپی اسکن بیماری (LSD). Alamat: jism par motay danay, jism par danay, موٹے دانے, ganth, ganthen, گانٹھ, chamri par ubhar, lumpy skin. Jism par motay danay/gaanthain Lumpy Skin Disease ki pehchan hai — machharon se phelta hai, fori isolation zaroori hai.",
+  "keywords": [
+   "jism par motay danay",
+   "jism par danay",
+   "موٹے دانے",
+   "ganth",
+   "ganthen",
+   "گانٹھ",
+   "chamri par ubhar",
+   "lumpy skin",
+   "lsd",
+   "doodh bilkul band",
+   "دودھ بند"
+  ]
+ },
+ {
+  "id": "triage-3",
+  "source": "PLDHE triage knowledge base v1 (curated)",
+  "title_en": "Bloat (Afra)",
+  "title_ur": "افرا (Bloat)",
+  "risk": "HIGH",
+  "text": "Bloat (Afra) / افرا (Bloat). Alamat: pait phoolna, pait phool gaya, پیٹ پھولنا, afra, افرا, bloat, pait mein gas, پیٹ میں گیس. Pait ka achanak phoolna (Afra) dabao barha kar saans rok sakta hai — HIGH risk, fori tawajju chahiye.",
+  "keywords": [
+   "pait phoolna",
+   "pait phool gaya",
+   "پیٹ پھولنا",
+   "afra",
+   "افرا",
+   "bloat",
+   "pait mein gas",
+   "پیٹ میں گیس"
+  ]
+ },
+ {
+  "id": "triage-4",
+  "source": "PLDHE triage knowledge base v1 (curated)",
+  "title_en": "Mastitis",
+  "title_ur": "سوزشِ پستان (Mastitis)",
+  "risk": "MEDIUM",
+  "text": "Mastitis / سوزشِ پستان (Mastitis). Alamat: than mein sujan, than me sujan, تھن میں سوجن, doodh mein khoon, دودھ میں خون, than garam, mastitis. Than ki sujan ya doodh mein tabdeeli Mastitis ki alamat hai — ilaj zaroori, lekin fori jan ka khatra nahi.",
+  "keywords": [
+   "than mein sujan",
+   "than me sujan",
+   "تھن میں سوجن",
+   "doodh mein khoon",
+   "دودھ میں خون",
+   "than garam",
+   "mastitis"
+  ]
+ },
+ {
+  "id": "triage-5",
+  "source": "PLDHE triage knowledge base v1 (curated)",
+  "title_en": "Fever / General Infection",
+  "title_ur": "بخار / عام انفیکشن",
+  "risk": "MEDIUM",
+  "text": "Fever / General Infection / بخار / عام انفیکشن. Alamat: bukhar, بخار, fever, khana na khana, کھانا نہ کھانا, chabhi nahi khandi, chabhi nahi khata, chara nahi khata. Bukhar ya susti aam infection ki alamat hai — nigrani aur ilaj ki zaroorat hai.",
+  "keywords": [
+   "bukhar",
+   "بخار",
+   "fever",
+   "khana na khana",
+   "کھانا نہ کھانا",
+   "chabhi nahi khandi",
+   "chabhi nahi khata",
+   "chara nahi khata",
+   "chara nahi khandi",
+   "nahi kha raha",
+   "anorexia",
+   "sust",
+   "سست",
+   "kamzor",
+   "کمزور"
+  ]
+ },
+ {
+  "id": "triage-6",
+  "source": "PLDHE triage knowledge base v1 (curated)",
+  "title_en": "Milk Drop / Nutritional",
+  "title_ur": "دودھ میں کمی / غذائی مسئلہ",
+  "risk": "LOW",
+  "text": "Milk Drop / Nutritional / دودھ میں کمی / غذائی مسئلہ. Alamat: doodh kam, دودھ کم, milk drop, wazan kam, وزن کم. Doodh mein kami aam tor par ghizai ya halka masla hota hai — ghar par dekhbhal aur vet se mashwara kafi hai.",
+  "keywords": [
+   "doodh kam",
+   "دودھ کم",
+   "milk drop",
+   "wazan kam",
+   "وزن کم"
+  ]
+ }
+]
