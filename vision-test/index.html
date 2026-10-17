@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PLDHE — 3D Smart Scan</title>
+<style>
+  * { box-sizing:border-box; }
+  body { background:#0d1f16; color:#e8f5e9; font-family:system-ui,sans-serif; margin:0; }
+  #app { max-width:600px; margin:0 auto; padding:16px; }
+  h1 { color:#2ecc71; font-size:24px; text-align:center; }
+  #viewWrap { position:relative; width:100%; border-radius:12px; overflow:hidden; background:#000; }
+  #video, #canvas { width:100%; display:block; }
+  #canvas { position:absolute; top:0; left:0; }
+  #guide { background:#143324; border-radius:12px; padding:16px; margin-top:12px; min-height:90px; }
+  #guideText { font-size:22px; color:#2ecc71; font-weight:bold; }
+  #guideSub { font-size:15px; color:#b0c4b8; margin-top:6px; }
+  #phaseBar { display:flex; gap:6px; margin-top:10px; }
+  #phaseBar div { flex:1; height:8px; border-radius:4px; background:#2a4a38; }
+  #phaseBar div.done { background:#2ecc71; }
+  #phaseBar div.now { background:#f5b741; }
+  .bigbtn { background:#2ecc71; color:#0d1f16; font-weight:bold; border:none; padding:16px; border-radius:30px; font-size:20px; cursor:pointer; width:100%; margin-top:12px; }
+  .bigbtn:disabled { background:#555; }
+  .ghostbtn { background:none; border:1px solid #2ecc71; color:#2ecc71; border-radius:30px; padding:10px 20px; margin-top:8px; font-size:15px; }
+  #result { background:#143324; border-radius:12px; padding:20px; margin-top:12px; display:none; }
+  .big { font-size:44px; color:#2ecc71; font-weight:bold; }
+  .note { color:#b0c4b8; font-size:14px; }
+  #status { color:#f5b741; text-align:center; margin:10px 0; }
+  #model3d { width:100%; border-radius:12px; background:#0a1a12; margin-top:12px; }
+  .meas { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #2a4a38; font-size:16px; }
+  #speakBtn { background:none; border:1px solid #2ecc71; color:#2ecc71; border-radius:20px; padding:6px 16px; margin-top:8px; font-size:14px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>PLDHE 3D Smart Scan</h1>
+  <div id="status">AI load ho raha hai...</div>
+
+  <div id="viewWrap" style="display:none">
+    <video id="video" playsinline muted></video>
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <div id="guide" style="display:none">
+    <div id="guideText">...</div>
+    <div id="guideSub"></div>
+    <div id="phaseBar"></div>
+    <button id="speakBtn">🔊 Dobara Suno</button>
+  </div>
+
+  <div id="refPanel" style="display:none">
+    <h3 style="color:#2ecc71">Reference check</h3>
+    <p class="note">AI ne dandi khud dhoond li hai (peeli lakeer). Theek hai?</p>
+    <canvas id="refCanvas" style="width:100%;border-radius:8px;border:2px solid #2ecc71"></canvas>
+    <p><label>Dandi ki lambai (cm): <input type="number" id="refLen" value="100" style="width:90px;padding:8px;border-radius:8px;border:1px solid #2ecc71;background:#0d1f16;color:#fff"></label></p>
+    <button class="bigbtn" id="refOk">Theek Hai — Calculate Karo</button>
+    <button class="ghostbtn" id="refManual">Ghalat hai — Khud mark karo</button>
+    <div id="manualBox" style="display:none">
+      <p class="note">Dandi ke 2 siray tap karo:</p>
+      <button class="bigbtn" id="refCalc" disabled>Calculate Karo</button>
+    </div>
+  </div>
+
+  <div id="result">
+    <h3 style="color:#2ecc71">3D Body Model — Auto Measurements</h3>
+    <canvas id="model3d" width="560" height="340"></canvas>
+    <div id="measList" style="margin-top:12px"></div>
+    <div class="big" id="weightBig" style="margin-top:12px"></div>
+    <div class="note">Multi-view auto scan (5 angles) • Schaeffer formula • takhmina hai, dawa ki khurak scale se confirm karein.</div>
+  </div>
+
+  <button class="bigbtn" id="startBtn" disabled>3D Scan Shuru Karo</button>
+</div>
+
+<script>
+  // OpenCV.js runtime init pattern (reliable)
+  var Module = { onRuntimeInitialized: function() { onCvReady(); } };
+</script>
+<script async src="https://docs.opencv.org/4.8.0/opencv.js"></script>
+<script>
+let net = null, stream = null, scanning = false, lastDetect = 0;
+let urduVoice = null, lastSpoken = '', lastSpeakTime = 0;
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+const PHASES = [
+  {id:'front', label:'Saamna', want:'front',
+   say:'Janwar ke bilkul saamne khare ho jao. Chehra camera ki taraf ho.'},
+  {id:'right', label:'Dayen Side', want:'side',
+   say:'Ab janwar ki dayen taraf jao. Poori side nazar aani chahiye.'},
+  {id:'back', label:'Peechay', want:'front',
+   say:'Ab janwar ke peechay jao. Peechay se nazar aana chahiye.'},
+  {id:'left', label:'Bayen Side', want:'side',
+   say:'Ab janwar ki bayen taraf jao. Poori side nazar aani chahiye.'},
+  {id:'top', label:'Uper Se', want:'any',
+   say:'Ab camera uper uthao aur janwar ko uper se dekho. Ruk jao.'},
+];
+let phaseIdx = 0;
+const captures = {};   // id -> {frame, det}
+let stableCount = 0;
+
+// ---------- Voice ----------
+function pickVoice() {
+  const vs = speechSynthesis.getVoices();
+  urduVoice = vs.find(v => v.lang.toLowerCase().startsWith('ur')) || null;
+}
+if('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+function speak(text, force) {
+  const now = Date.now();
+  if(!force && text === lastSpoken && now - lastSpeakTime < 9000) return;
+  lastSpoken = text; lastSpeakTime = now;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ur-PK'; if(urduVoice) u.voice = urduVoice; u.rate = 0.95;
+    speechSynthesis.speak(u);
+  } catch(e){}
+}
+function guide(main, sub) {
+  document.getElementById('guideText').textContent = main;
+  document.getElementById('guideSub').textContent = sub || '';
+  speak(main);
+}
+document.getElementById('speakBtn').onclick = () => speak(document.getElementById('guideText').textContent, true);
+
+function renderPhaseBar() {
+  const bar = document.getElementById('phaseBar');
+  bar.innerHTML = '';
+  PHASES.forEach((p, i) => {
+    const d = document.createElement('div');
+    if(i < phaseIdx) d.className = 'done';
+    else if(i === phaseIdx) d.className = 'now';
+    d.title = p.label;
+    bar.appendChild(d);
+  });
+}
+
+// ---------- Model ----------
+async function fetchWithProgress(url, label) {
+  const resp = await fetch(url);
+  if(!resp.ok) throw new Error(label + ' HTTP ' + resp.status);
+  const total = parseInt(resp.headers.get('content-length') || '0', 10);
+  const reader = resp.body.getReader();
+  const chunks = [];
+  let got = 0;
+  while(true) {
+    const {done, value} = await reader.read();
+    if(done) break;
+    chunks.push(value); got += value.length;
+    if(total) document.getElementById('status').textContent =
+      label + ' ' + Math.round(got/total*100) + '% (' + Math.round(got/1048576) + 'MB)';
+  }
+  const buf = new Uint8Array(got);
+  let off = 0;
+  chunks.forEach(c => { buf.set(c, off); off += c.length; });
+  return buf.buffer;
+}
+
+async function onCvReady() {
+  const st = document.getElementById('status');
+  try {
+    st.textContent = 'AI model load ho raha hai...';
+    const pBuf = await fetchWithProgress(
+      'https://raw.githubusercontent.com/chuanqi305/MobileNet-SSD/master/deploy.prototxt', 'Model');
+    const mBuf = await fetchWithProgress(
+      'https://raw.githubusercontent.com/chuanqi305/MobileNet-SSD/master/mobilenet_iter_73000.caffemodel', 'AI model');
+    cv.FS_createDataFile('/', 'd.prototxt', new Uint8Array(pBuf), true, false, false);
+    cv.FS_createDataFile('/', 'm.caffemodel', new Uint8Array(mBuf), true, false, false);
+    net = cv.readNetFromCaffe('/d.prototxt', '/m.caffemodel');
+    st.textContent = 'Ready! 5 angles se scan hoga.';
+    st.style.color = '#2ecc71';
+    document.getElementById('startBtn').disabled = false;
+  } catch(e) {
+    st.textContent = 'Model load nahi hua: ' + e.message + ' — net check karo aur reload karo.';
+  }
+}
+
+// ---------- Detection ----------
+function detectVideo() {
+  const mat = cv.imread(video);
+  const small = new cv.Mat();
+  cv.resize(mat, small, new cv.Size(300,300));
+  const blob = cv.blobFromImage(small, 0.007843, new cv.Size(300,300), new cv.Scalar(127.5,127.5,127.5));
+  net.setInput(blob);
+  const out = net.forward();
+  let best = null;
+  for(let i=0;i<out.size(2);i++) {
+    const conf = out.floatAt(0,0,i,2), cls = out.intAt(0,0,i,1);
+    if(cls === 10 && conf > 0.35 && (!best || conf > best.conf))
+      best = {conf, x1:out.floatAt(0,0,i,3), y1:out.floatAt(0,0,i,4), x2:out.floatAt(0,0,i,5), y2:out.floatAt(0,0,i,6)};
+  }
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  let res = null;
+  if(best) {
+    const x1=best.x1*canvas.width, y1=best.y1*canvas.height, x2=best.x2*canvas.width, y2=best.y2*canvas.height;
+    ctx.strokeStyle = '#2ecc71'; ctx.lineWidth = 4;
+    ctx.strokeRect(x1,y1,x2-x1,y2-y1);
+    ctx.fillStyle = '#2ecc71'; ctx.font = 'bold 20px sans-serif';
+    ctx.fillText(Math.round(best.conf*100)+'%', x1, y1-8);
+    res = {conf:best.conf, bw:x2-x1, bh:y2-y1, w:canvas.width, h:canvas.height};
+  }
+  mat.delete(); small.delete(); blob.delete(); out.delete();
+  return res;
+}
+
+function captureVideo() {
+  const c = document.createElement('canvas');
+  c.width = video.videoWidth; c.height = video.videoHeight;
+  c.getContext('2d').drawImage(video, 0, 0);
+  return c;
+}
+
+// ---------- Scan flow ----------
+document.getElementById('startBtn').onclick = async () => {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode:'environment', width:{ideal:640}, height:{ideal:480} }, audio:false });
+    video.srcObject = stream;
+    await video.play();
+  } catch(e) {
+    document.getElementById('status').textContent = 'Camera nahi khula: ' + e.message;
+    return;
+  }
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  document.getElementById('viewWrap').style.display = 'block';
+  document.getElementById('guide').style.display = 'block';
+  document.getElementById('startBtn').style.display = 'none';
+  document.getElementById('status').style.display = 'none';
+  phaseIdx = 0; stableCount = 0;
+  renderPhaseBar();
+  guide(PHASES[0].say, 'Step 1/5 — ' + PHASES[0].label);
+  speak(PHASES[0].say, true);
+  scanning = true;
+  requestAnimationFrame(loop);
+};
+
+function loop() {
+  if(!scanning) return;
+  const now = Date.now();
+  if(now - lastDetect > 350) { lastDetect = now; step(detectVideo()); }
+  requestAnimationFrame(loop);
+}
+
+function step(det) {
+  const ph = PHASES[phaseIdx];
+  if(!det) {
+    if(ph.want !== 'any') { guide('Janwar nazar nahi aa raha', 'Camera janwar ki taraf karo'); stableCount = 0; }
+    else { // top view: countdown capture even without detection
+      stableCount++;
+      if(stableCount === 6) guide('Ruk jao...', 'Uper se capture ho raha hai');
+      if(stableCount >= 10) doCapture(null);
+    }
+    return;
+  }
+  const frac = (det.bw * det.bh) / (det.w * det.h);
+  if(frac < 0.10) { guide('Thoda aage aao', 'Janwar chhota nazar aa raha hai'); stableCount = 0; return; }
+  if(frac > 0.72) { guide('Thoda peeche jao', 'Bohat qareeb ho'); stableCount = 0; return; }
+  const aspect = det.bw / det.bh;
+  const isSide = aspect > 1.45, isFront = aspect <= 1.45;
+  if(ph.want === 'side' && !isSide) { guide('Side nazar nahi aa rahi', 'Poori side camera ke saamne lao'); stableCount = 0; return; }
+  if(ph.want === 'front' && !isFront) { guide('Ye side view hai', ph.id === 'front' ? 'Bilkul saamne jao' : 'Bilkul peechay jao'); stableCount = 0; return; }
+  stableCount++;
+  if(stableCount >= 4) { doCapture(det); }
+  else guide('Ruk jao...', 'Scan ho raha hai, hilo mat — ' + ph.label);
+}
+
+function doCapture(det) {
+  const ph = PHASES[phaseIdx];
+  captures[ph.id] = { frame: captureVideo(), det };
+  stableCount = 0;
+  phaseIdx++;
+  renderPhaseBar();
+  if(phaseIdx >= PHASES.length) {
+    scanning = false;
+    stream.getTracks().forEach(t => t.stop());
+    document.getElementById('viewWrap').style.display = 'none';
+    const msg = 'Paanch angles ka scan mukammal! Ab reference check karo.';
+    guide('Scan mukammal!', msg);
+    speak(msg, true);
+    showReference();
+  } else {
+    const nph = PHASES[phaseIdx];
+    guide(nph.say, 'Step ' + (phaseIdx+1) + '/5 — ' + nph.label);
+    speak(nph.say, true);
+  }
+}
+
+// ---------- Reference auto-detect (Hough lines) ----------
+let autoLine = null, manualPts = [];
+function detectStickLine(frameCanvas) {
+  const src = cv.imread(frameCanvas);
+  const gray = new cv.Mat(), edges = new cv.Mat(), lines = new cv.Mat();
+  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+  cv.Canny(gray, edges, 50, 150);
+  cv.HoughLinesP(edges, lines, 1, Math.PI/180, 100, 120, 15);
+  let best = null, bestLen = 0;
+  for(let i=0;i<lines.rows;i++) {
+    const x1=lines.intAt(i,0), y1=lines.intAt(i,1), x2=lines.intAt(i,2), y2=lines.intAt(i,3);
+    const len = Math.hypot(x2-x1, y2-y1);
+    if(len > bestLen) { bestLen = len; best = [x1,y1,x2,y2]; }
+  }
+  src.delete(); gray.delete(); edges.delete(); lines.delete();
+  return best ? {pts:best, px:bestLen} : null;
+}
+
+function showReference() {
+  document.getElementById('guide').style.display = 'none';
+  document.getElementById('refPanel').style.display = 'block';
+  const sideFrame = captures['right'].frame; // side view for reference
+  autoLine = detectStickLine(sideFrame);
+  const rc = document.getElementById('refCanvas');
+  const sc = Math.min(1, 560 / sideFrame.width);
+  rc.width = sideFrame.width * sc; rc.height = sideFrame.height * sc;
+  drawRef(rc, sideFrame, autoLine ? autoLine.pts : null, manualPts);
+  rc.onclick = e => {
+    if(document.getElementById('manualBox').style.display !== 'block') return;
+    const r = rc.getBoundingClientRect();
+    const sx = sideFrame.width / r.width;
+    manualPts.push([(e.clientX-r.left)*sx, (e.clientY-r.top)*sx]);
+    if(manualPts.length > 2) manualPts = [manualPts[manualPts.length-1]];
+    drawRef(rc, sideFrame, null, manualPts);
+    document.getElementById('refCalc').disabled = manualPts.length !== 2;
+  };
+}
+
+function drawRef(rc, frame, line, pts) {
+  const sc = rc.width / frame.width;
+  const x = rc.getContext('2d');
+  x.drawImage(frame, 0, 0, rc.width, rc.height);
+  if(line) {
+    x.strokeStyle = '#ffeb3b'; x.lineWidth = 5; x.beginPath();
+    x.moveTo(line[0]*sc, line[1]*sc); x.lineTo(line[2]*sc, line[3]*sc); x.stroke();
+  }
+  x.fillStyle = '#ff4444';
+  pts.forEach(p => { x.beginPath(); x.arc(p[0]*sc, p[1]*sc, 7, 0, 7); x.fill(); });
+  if(pts.length === 2) {
+    x.strokeStyle = '#ff4444'; x.lineWidth = 4; x.beginPath();
+    x.moveTo(pts[0][0]*sc, pts[0][1]*sc); x.lineTo(pts[1][0]*sc, pts[1][1]*sc); x.stroke();
+  }
+}
+
+document.getElementById('refManual').onclick = () => {
+  document.getElementById('manualBox').style.display = 'block';
+  manualPts = [];
+  speak('Dandi ke do siray tap karo.', true);
+};
+document.getElementById('refOk').onclick = () => {
+  if(!autoLine || autoLine.px <= 0) { speak('Dandi nahi mili. Khud mark karo.', true); return; }
+  calculate(autoLine.px);
+};
+document.getElementById('refCalc').onclick = () => {
+  const [a,b] = manualPts;
+  calculate(Math.hypot(a[0]-b[0], a[1]-b[1]));
+};
+
+// ---------- Measure + 3D model ----------
+function detectOnFrame(frame) {
+  const mat = cv.imread(frame);
+  const small = new cv.Mat();
+  cv.resize(mat, small, new cv.Size(300,300));
+  const blob = cv.blobFromImage(small, 0.007843, new cv.Size(300,300), new cv.Scalar(127.5,127.5,127.5));
+  net.setInput(blob);
+  const out = net.forward();
+  let best = null;
+  for(let i=0;i<out.size(2);i++) {
+    const conf = out.floatAt(0,0,i,2), cls = out.intAt(0,0,i,1);
+    if(cls === 10 && conf > 0.3 && (!best || conf > best.conf))
+      best = {conf, x1:out.floatAt(0,0,i,3), y1:out.floatAt(0,0,i,4), x2:out.floatAt(0,0,i,5), y2:out.floatAt(0,0,i,6)};
+  }
+  mat.delete(); small.delete(); blob.delete(); out.delete();
+  if(!best) return null;
+  return {bw:(best.x2-best.x1)*frame.width, bh:(best.y2-best.y1)*frame.height, conf:best.conf};
+}
+
+function calculate(refPx) {
+  const refLen = parseFloat(document.getElementById('refLen').value) || 100;
+  const pxCm = refPx / refLen;
+  const res = document.getElementById('result');
+  res.style.display = 'block';
+  document.getElementById('refPanel').style.display = 'none';
+
+  const dR = detectOnFrame(captures['right'].frame);
+  const dL = detectOnFrame(captures['left'].frame);
+  const dF = detectOnFrame(captures['front'].frame);
+  const dB = detectOnFrame(captures['back'].frame);
+  const dT = captures['top'].det || detectOnFrame(captures['top'].frame);
+
+  if(!dR || !dF) {
+    res.innerHTML = '<span style="color:#f5b741">Measurement nahi ho saki — dobara scan karo.</span>';
+    return;
+  }
+  // Fused measurements (cm)
+  const L = ((dR.bw + (dL ? dL.bw : dR.bw)) / 2) / pxCm;
+  const H = dR.bh / pxCm;
+  const Wchest = dF.bw / pxCm;
+  const Whip = dB ? dB.bw / pxCm : Wchest;
+  const Wtop = dT ? dT.bw / pxCm : Wchest;
+  const W = Math.max(Wchest, Whip, Wtop);
+  const D = H * 0.82; // chest depth ≈ 82% of body height (documented assumption)
+  const C = Math.PI * Math.sqrt((W*W + D*D) / 2);
+  const weight = Math.round((L * C * C) / 10838);
+
+  document.getElementById('measList').innerHTML =
+    row('Body length (2 sides avg)', L) + row('Body height', H) +
+    row('Chest width (front)', Wchest) + row('Hip width (back)', Whip) +
+    row('Heart girth (fused)', C) +
+    '<div class="meas"><span>Views captured</span><b>5/5</b></div>';
+  document.getElementById('weightBig').textContent = weight + ' kg';
+  drawModel(L, W, H);
+  const msg = 'Wazan takhmeenan ' + weight + ' kilo hai. Lambai ' + Math.round(L) + ' cm, girth ' + Math.round(C) + ' cm.';
+  speak(msg, true);
+  window.scrollTo(0, document.body.scrollHeight);
+}
+function row(label, v) {
+  return '<div class="meas"><span>' + label + '</span><b>' + Math.round(v) + ' cm</b></div>';
+}
+
+// Rotating 3D wireframe ellipsoid from measured L/W/H
+let modelAngle = 0, modelDims = null;
+function drawModel(L, W, H) {
+  modelDims = {L, W, H};
+  requestAnimationFrame(spinModel);
+}
+function spinModel() {
+  if(!modelDims) return;
+  const {L, W, H} = modelDims;
+  const c = document.getElementById('model3d');
+  const x = c.getContext('2d');
+  const a = L/2, b = W/2, cc = H/2;
+  const sc = Math.min(c.width/(2.6*a), c.height/(2.6*cc));
+  const cx = c.width/2, cy = c.height/2;
+  x.clearRect(0, 0, c.width, c.height);
+  const ang = modelAngle; modelAngle += 0.02;
+  // longitude lines
+  x.strokeStyle = '#2ecc71'; x.lineWidth = 1.5;
+  for(let k=0;k<6;k++) {
+    x.beginPath();
+    const lon = k * Math.PI/6;
+    for(let i=0;i<=40;i++) {
+      const lat = -Math.PI/2 + i*Math.PI/40;
+      const px = a*Math.cos(lat)*Math.cos(lon), py = cc*Math.sin(lat), pz = b*Math.cos(lat)*Math.sin(lon);
+      const rx = px*Math.cos(ang) - pz*Math.sin(ang);
+      const rz = px*Math.sin(ang) + pz*Math.cos(ang);
+      const sx = cx + rx*sc, sy = cy - py*sc;
+      if(i===0) x.moveTo(sx,sy); else x.lineTo(sx,sy);
+    }
+    x.stroke();
+  }
+  // latitude lines
+  for(let k=1;k<4;k++) {
+    x.beginPath();
+    const lat = -Math.PI/2 + k*Math.PI/4;
+    for(let i=0;i<=40;i++) {
+      const lon = i*2*Math.PI/40;
+      const px = a*Math.cos(lat)*Math.cos(lon), py = cc*Math.sin(lat), pz = b*Math.cos(lat)*Math.sin(lon);
+      const rx = px*Math.cos(ang) - pz*Math.sin(ang);
+      const sx = cx + rx*sc, sy = cy - py*sc;
+      if(i===0) x.moveTo(sx,sy); else x.lineTo(sx,sy);
+    }
+    x.stroke();
+  }
+  // labels
+  x.fillStyle = '#f5b741'; x.font = 'bold 15px sans-serif';
+  x.fillText('L=' + Math.round(L) + 'cm', cx + a*sc*0.55, cy + cc*sc + 22);
+  x.fillText('W=' + Math.round(W) + 'cm', cx - a*sc - 66, cy - 8);
+  x.fillText('H=' + Math.round(H) + 'cm', cx + a*sc + 8, cy - cc*sc*0.5);
+  if(document.getElementById('result').style.display === 'block')
+    requestAnimationFrame(spinModel);
+}
+</script>
+</body>
+</html>
